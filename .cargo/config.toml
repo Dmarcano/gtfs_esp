@@ -1,9 +1,8 @@
 [target.xtensa-esp32-none-elf]
-runner = "probe-rs run --chip=esp32"
+runner = "espflash flash --monitor"
 
 [env]
-DEFMT_LOG="info"
-SSID="TP-LINK_5090"
+ESP_LOG="INFO"
 
 [build]
 rustflags = [
@@ -14,4 +13,3 @@ target = "xtensa-esp32-none-elf"
 
 [unstable]
 build-std = ["alloc", "core"]
-
