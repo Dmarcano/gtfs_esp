@@ -1,0 +1,17 @@
+[target.xtensa-esp32-none-elf]
+runner = "probe-rs run --chip=esp32"
+
+[env]
+DEFMT_LOG="info"
+SSID="TP-LINK_5090"
+
+[build]
+rustflags = [
+  "-C", "link-arg=-nostartfiles",
+]
+
+target = "xtensa-esp32-none-elf"
+
+[unstable]
+build-std = ["alloc", "core"]
+
