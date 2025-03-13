@@ -8,7 +8,9 @@ use embassy_net::{
     Runner, Stack, StackResources,
 };
 use embassy_time::{Duration, Timer};
-use esp_hal::{clock::CpuClock, gpio::Output};
+use esp_hal::clock::CpuClock;
+
+use esp_backtrace::arch as _;
 
 use esp_wifi::{
     init,
@@ -19,10 +21,7 @@ use esp_wifi::{
     EspWifiController,
 };
 use log::info;
-use reqwless::{
-    client::{HttpClient, TlsConfig},
-    request::RequestBuilder,
-};
+use reqwless::client::HttpClient;
 use static_cell;
 
 extern crate alloc;
@@ -49,12 +48,12 @@ async fn main(spawner: Spawner) {
 
     esp_println::logger::init_logger_from_env();
 
-    let timer0 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG1);
+    let timer0 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0);
     esp_hal_embassy::init(timer0.timer0);
 
     info!("Embassy initialized!");
 
-    let timer1 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0);
+    let timer1 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG1);
 
     let controller = &*mk_static!(
         EspWifiController<'static>,
@@ -91,24 +90,14 @@ async fn main(spawner: Spawner) {
         Timer::after(Duration::from_millis(500)).await;
     }
 
-    // let tls_seed = rng.random() as u64 | ((rng.random() as u64) << 32);
-    // let rsa = Rsa::new(peripherals.RSA);
-    // access_time_api(stack, tls_seed).await;
+    Timer::after(Duration::from_millis(2000)).await;
+
+    access_url(stack).await;
 }
 
 #[embassy_executor::task]
 async fn net_task(mut runner: Runner<'static, WifiDevice<'static, WifiStaDevice>>) {
     runner.run().await
-}
-
-#[embassy_executor::task]
-async fn blinker(mut led: Output<'static>, interval: Duration) {
-    loop {
-        led.set_high();
-        Timer::after(interval).await;
-        led.set_low();
-        Timer::after(interval).await;
-    }
 }
 
 #[embassy_executor::task]
@@ -158,44 +147,21 @@ async fn connection(mut controller: WifiController<'static>) {
     }
 }
 
-async fn access_time_api<'d>(stack: Stack<'static>, tls_seed: u64) {
-    // let mut rx_buffer = [0; 4096];
-    // let mut tx_buffer = [0; 4096];
-
-    loop {
-        if stack.is_link_up() {
-            info!("Link is up!!");
-            break;
-        }
-        Timer::after(Duration::from_millis(500)).await;
-    }
+async fn access_url<'d>(stack: Stack<'static>) {
     let dns = DnsSocket::new(stack);
     let tcp_state = TcpClientState::<1, 4096, 4096>::new();
     let tcp = TcpClient::new(stack, &tcp_state);
 
-    // let config = TlsConfig::new(
-    //     reqwless::TlsVersion::Tls1_3,
-    //     reqwless::Certificates {
-    //         ca_chain: reqwless::X509::pem(CERT.as_bytes()).ok(),
-    //         ..Default::default()
-    //     },
-    //     Some(&mut rsa), // Will use hardware acceleration
-    // );
-
-    // let tls = TlsConfig::new(
-    //     tls_seed,
-    //     &mut rx_buffer,
-    //     &mut tx_buffer,
-    //     // reqwless::client::TlsVerify::None,
-    // );
 
     let mut client = HttpClient::new(&tcp, &dns);
-    // let mut client = HttpClient::new_with_tls(&tcp, &dns, tls);
     let mut buffer = [0u8; 4096];
+
+    // Doing these aboslute jank to avoid unwrap() and instead log errors
     let http_req = client
         .request(
             reqwless::request::Method::GET,
-            "https://worldtimeapi.org/api/timezone/America/New_York",
+            // "https://worldtimeapi.org/api/timezone/America/New_York",
+            "www.mobile-j.de"
         )
         .await;
 
@@ -211,11 +177,5 @@ async fn access_time_api<'d>(stack: Stack<'static>, tls_seed: u64) {
         Err(err) => info!("Ran into error building request: {:?}", err),
     }
 
-    // let response = http_req.send(&mut buffer).await.unwrap();
-
     info!("Got response");
-    // let res = response.body().read_to_end().await.unwrap();
-
-    // let content = core::str::from_utf8(res).unwrap();
-    // info!("{}", content);
 }
